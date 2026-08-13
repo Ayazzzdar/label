@@ -267,14 +267,15 @@ def _draw_label(c, o, return_text, logo):
 
     # --- recipient ---
     c.setFillColorRGB(0, 0, 0)
-    y = yline - 1.0 * mm
+    y = yline - 0.6 * mm
     for ln in _wrap(c, o.get("name", ""), "Helvetica-Bold", 10, max_w):
-        y -= 3.5 * mm
+        y -= 3.7 * mm
         c.setFont("Helvetica-Bold", 10)
         c.drawString(x0, y, ln)
+    y -= 0.8 * mm                      # breathing room between name and address
     for line in o.get("addr_lines", []):
         for ln in _wrap(c, line, "Helvetica", 9, max_w):
-            y -= 3.1 * mm
+            y -= 3.3 * mm
             c.setFont("Helvetica", 9)
             c.drawString(x0, y, ln)
 
@@ -405,8 +406,8 @@ with tab_ss:
     st.write("Drop one or more screenshots of your order list. I'll read the order numbers.")
     files = st.file_uploader("Order screenshots", type=["png", "jpg", "jpeg"],
                              accept_multiple_files=True)
-    detected = []
     if files and _OCR_IMPORT_OK:
+        detected = []
         for f in files:
             try:
                 nums, raw = extract_numbers(Image.open(f))
@@ -417,11 +418,17 @@ with tab_ss:
             with st.expander(f"{f.name} — {len(nums)} numbers found"):
                 st.text(raw or "(no text)")
         detected = dedupe(detected)
-    edited = st.text_area("Detected order numbers — review & fix before fetching",
-                          value=", ".join(detected), key="ss_edit",
-                          placeholder="2542, 2597, 2604 …")
+        # A keyed widget ignores `value=` after it first renders, so seed the box
+        # via session_state instead — but only when the uploaded file set changes,
+        # so we don't clobber the user's manual corrections on every rerun.
+        sig = tuple((f.name, f.size) for f in files)
+        if st.session_state.get("_ss_sig") != sig:
+            st.session_state["_ss_sig"] = sig
+            st.session_state["ss_edit"] = ", ".join(detected)
+    st.text_area("Detected order numbers — review & fix before fetching",
+                 key="ss_edit", placeholder="2542, 2597, 2604 …")
     if st.button("Fetch these orders", key="ss_fetch", type="primary"):
-        do_fetch(parse_numbers(edited))
+        do_fetch(parse_numbers(st.session_state.get("ss_edit", "")))
 
 with tab_paste:
     txt = st.text_area("Order numbers (any separator)", placeholder="2597, 2604, 2605", key="paste_txt")
