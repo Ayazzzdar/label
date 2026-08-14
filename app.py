@@ -279,32 +279,53 @@ def _draw_label(c, o, return_text, logo):
     c.setLineWidth(0.4)
     c.line(x0, yline, LABEL_W - PAD, yline)
 
-    # --- recipient ---
-    c.setFillColorRGB(0, 0, 0)
-    y = yline - 0.6 * mm
-    for ln in _wrap(c, o.get("name", ""), "Helvetica-Bold", 10, max_w):
-        y -= 3.7 * mm
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(x0, y, ln)
-    y -= 0.8 * mm                      # breathing room between name and address
+    # --- return address block: reserved at the bottom ---
+    RET_SIZE, RET_LEAD = 6.3, 2.4 * mm
+    rlines = _wrap(c, return_text, "Helvetica", RET_SIZE, max_w)[:2]
+    ret_top_baseline = PAD + 0.2 * mm + (len(rlines) - 1) * RET_LEAD
+    floor = ret_top_baseline + 3.6 * mm          # recipient text must stay above this
+
+    # --- recipient block: auto-fit so name + address + phone never collide ---
+    # Measure at full size (worst case), then shrink the whole block only if it
+    # wouldn't otherwise clear the return line. Typical labels keep full size.
+    y_start = yline - 0.6 * mm
+    avail = y_start - floor
+    name_lines = _wrap(c, o.get("name", ""), "Helvetica-Bold", 10, max_w)
+    addr_lines = []
     for line in o.get("addr_lines", []):
-        for ln in _wrap(c, line, "Helvetica", 9, max_w):
-            y -= 3.3 * mm
-            c.setFont("Helvetica", 9)
+        addr_lines += _wrap(c, line, "Helvetica", 9, max_w)
+    has_phone = bool(o.get("phone"))
+    need = (0.8 + 3.7 * len(name_lines) + 3.3 * len(addr_lines)
+            + (3.2 if has_phone else 0)) * mm
+    s = 1.0 if need <= avail else max(avail / need, 0.6)   # shrink only when needed
+
+    name_sz, addr_sz, phone_sz = 10 * s, 9 * s, 8.5 * s
+    name_ld, addr_ld, phone_ld, gap = 3.7 * s * mm, 3.3 * s * mm, 3.2 * s * mm, 0.8 * s * mm
+
+    c.setFillColorRGB(0, 0, 0)
+    y = y_start
+    for ln in _wrap(c, o.get("name", ""), "Helvetica-Bold", name_sz, max_w):
+        y -= name_ld
+        c.setFont("Helvetica-Bold", name_sz)
+        c.drawString(x0, y, ln)
+    y -= gap
+    for line in o.get("addr_lines", []):
+        for ln in _wrap(c, line, "Helvetica", addr_sz, max_w):
+            y -= addr_ld
+            c.setFont("Helvetica", addr_sz)
             c.drawString(x0, y, ln)
-    if o.get("phone"):
-        y -= 3.2 * mm
-        c.setFont("Helvetica", 8.5)
+    if has_phone:
+        y -= phone_ld
+        c.setFont("Helvetica", phone_sz)
         c.drawString(x0, y, "Ph: " + o["phone"])
 
-    # --- return address, wrapped, pinned to bottom ---
+    # --- return address, pinned to bottom ---
     c.setFillColorRGB(0.33, 0.33, 0.33)
-    rlines = _wrap(c, return_text, "Helvetica", 6.3, max_w)[:2]
-    ry = PAD + 0.2 * mm + (len(rlines) - 1) * 2.4 * mm
+    ry = ret_top_baseline
     for ln in rlines:
-        c.setFont("Helvetica", 6.3)
+        c.setFont("Helvetica", RET_SIZE)
         c.drawString(x0, ry, ln)
-        ry -= 2.4 * mm
+        ry -= RET_LEAD
     c.setFillColorRGB(0, 0, 0)
 
 
