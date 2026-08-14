@@ -82,7 +82,7 @@ def _headers(token):
     return {"X-Shopify-Access-Token": token, "Content-Type": "application/json"}
 
 
-ORDER_FIELDS = "id,name,order_number,shipping_address,created_at,fulfillment_status"
+ORDER_FIELDS = "id,name,order_number,shipping_address,billing_address,customer,phone,created_at,fulfillment_status"
 
 
 def test_connection(store, token):
@@ -163,6 +163,19 @@ def fetch_one_by_name(store, token, number):
 # ---------------------------------------------------------------------------
 # Transform order -> label data
 # ---------------------------------------------------------------------------
+def resolve_phone(o):
+    """Pick the best phone the customer left, in priority order:
+    shipping address -> order/checkout phone -> customer profile -> billing.
+    Returns "" if none were provided (label simply omits it)."""
+    sa = o.get("shipping_address") or {}
+    ba = o.get("billing_address") or {}
+    cust = o.get("customer") or {}
+    for candidate in (sa.get("phone"), o.get("phone"), cust.get("phone"), ba.get("phone")):
+        if candidate and str(candidate).strip():
+            return str(candidate).strip()
+    return ""
+
+
 def transform(o):
     sa = o.get("shipping_address") or {}
     name = sa.get("name") or " ".join(
@@ -186,6 +199,7 @@ def transform(o):
         "order_no": o.get("name") or ("#" + str(o.get("order_number", ""))),
         "name": name or "(no name on order)",
         "addr_lines": lines,
+        "phone": resolve_phone(o),
         "has_address": bool(sa.get("address1")),
     }
 
@@ -278,6 +292,10 @@ def _draw_label(c, o, return_text, logo):
             y -= 3.3 * mm
             c.setFont("Helvetica", 9)
             c.drawString(x0, y, ln)
+    if o.get("phone"):
+        y -= 3.2 * mm
+        c.setFont("Helvetica", 8.5)
+        c.drawString(x0, y, "Ph: " + o["phone"])
 
     # --- return address, wrapped, pinned to bottom ---
     c.setFillColorRGB(0.33, 0.33, 0.33)
